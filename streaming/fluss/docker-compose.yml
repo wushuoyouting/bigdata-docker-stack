@@ -1,0 +1,57 @@
+services:
+  fluss-zookeeper:
+    container_name: fluss-zookeeper
+    image: zookeeper:3.9.2
+    restart: always
+    networks:
+      - fluss-net
+  fluss-coordinator:
+    container_name: fluss-coordinator
+    image: apache/fluss:1.0.0
+    command: coordinatorServer
+    depends_on:
+      - fluss-zookeeper
+    environment:
+      - |
+        FLUSS_PROPERTIES=
+        zookeeper.address: fluss-zookeeper:2181
+        bind.listeners: INTERNAL://fluss-coordinator:0, CLIENT://fluss-coordinator:9123
+        advertised.listeners: CLIENT://fluss-coordinator:9123
+        internal.listener.name: INTERNAL
+        remote.data.dir: /tmp/fluss/remote-data
+    ports:
+      - "9123:9123"
+    networks:
+      - fluss-net
+  fluss-tablet:
+    container_name: fluss-tablet
+    image: apache/fluss:1.0.0
+    command: tabletServer
+    depends_on:
+      - fluss-coordinator
+    environment:
+      - |
+        FLUSS_PROPERTIES=
+        zookeeper.address: fluss-zookeeper:2181
+        bind.listeners: INTERNAL://fluss-tablet:0, CLIENT://fluss-tablet:9123
+        advertised.listeners: CLIENT://fluss-tablet:9123
+        internal.listener.name: INTERNAL
+        tablet-server.id: 0
+        kv.snapshot.interval: 0s
+        data.dir: /tmp/fluss/data
+        remote.data.dir: /tmp/fluss/remote-data
+    ports:
+      - "9124:9123"
+    volumes:
+      - shared-tmpfs:/tmp/fluss
+    networks:
+      - fluss-net
+volumes:
+  shared-tmpfs:
+    driver: local
+    driver_opts:
+      type: "tmpfs"
+      device: "tmpfs"
+networks:
+  fluss-net:
+    driver: bridge

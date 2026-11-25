@@ -1,0 +1,61 @@
+# 系统与工具目录
+.DS_Store
+Thumbs.db
+.codebuddy/
+.mimosa/
+.screenshots/
+
+# 本机运维档案
+code-wiki/
+
+# Python 虚拟环境
+ai/mineru/.mineru/
+__pycache__/
+*.pyc
+*.pyo
+
+# 上游源码副本
+table-formats/iceberg/iceberg/
+
+# 运行时数据目录
+olap/doris/be/
+olap/doris/fe/
+olap/doris/volumes/
+olap/doris/data/
+olap/starrocks/be/
+olap/starrocks/volumes/
+olap/starrocks/data/
+messaging/kafka/data/
+scheduling/dolphinscheduler/volumes/
+object-storage/minio/data/
+bi/superset/home/
+ai/mineru/output/
+ai/mineru/.mineru/
+**/logs/
+**/checkpoints/
+**/data-standalone/
+**/logs-standalone/
+
+# 运行时数据文件
+*.dat
+*.meta
+*.index
+*.timeindex
+*.metadata
+*.jdb
+*.sst
+olap/starrocks/**/*.0
+olap/starrocks/**/*.1
+olap/starrocks/**/*.4
+
+# 日志
+*.log
+*.log.*
+
+# 大体积依赖包
+*.jar
+
+# 凭据与本地配置
+.env
+*.env
+docker-compose.whd.yml

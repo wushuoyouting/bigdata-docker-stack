@@ -1,0 +1,159 @@
+SET 'execution.target' = 'remote';
+SET 'rest.address' = 'localhost';
+SET 'rest.port' = '8081';
+SET 'execution.checkpointing.interval' = '100s';
+SET 'table.exec.state.ttl'= '8640000';
+SET 'table.exec.mini-batch.enabled' = 'true';
+SET 'table.exec.mini-batch.allow-latency' = '60s';
+SET 'table.exec.mini-batch.size' = '10000';
+SET 'table.local-time-zone' = 'Asia/Shanghai';
+SET 'table.exec.sink.not-null-enforcer'='DROP';
+SET 'table.exec.sink.upsert-materialize' = 'NONE';
+SET 'sql-client.execution.result-mode' = 'tableau';
+SET 'execution.runtime-mode' = 'batch';
+
+CREATE CATALOG paimon_minio WITH (
+    'type' = 'paimon',
+    'metastore' = 'filesystem',
+    'warehouse' = 's3://lakehouse/paimon',
+    's3.endpoint' = 'http://minio:9000',
+    's3.access-key' = 'ak6c52d75066d96ddd',
+    's3.secret-key' = '5cf0fa1d0e1fd9bf182be642beca1a15',
+    's3.path.style.access' = 'true'
+);
+USE CATALOG paimon_minio;
+CREATE DATABASE IF NOT EXISTS dwd;
+
+CREATE TABLE IF NOT EXISTS dwd.dwd_user_login_full(
+    `k1`             STRING COMMENT '分区字段',
+    `user_id`        STRING COMMENT '用户ID',
+    `date_id`        STRING COMMENT '日期ID',
+    `login_time`     STRING COMMENT '登录时间',
+    `channel`        STRING COMMENT '应用下载渠道',
+    `province_id`    BIGINT COMMENT '省份id',
+    `version_code`   STRING COMMENT '应用版本',
+    `mid_id`         STRING COMMENT '设备id',
+    `brand`          STRING COMMENT '设备品牌',
+    `model`          STRING COMMENT '设备型号',
+    `operate_system` STRING COMMENT '设备操作系统',
+    PRIMARY KEY (`k1`,`user_id`,`date_id` ) NOT ENFORCED
+    ) PARTITIONED BY (`k1`) WITH (
+    'connector' = 'paimon',
+    'metastore.partitioned-table' = 'true',
+    'file.format' = 'parquet',
+    'write-buffer-size' = '512mb',
+    'write-buffer-spillable' = 'true',
+    'partition.expiration-time' = '1 d',
+    'partition.expiration-check-interval' = '1 h',
+    'partition.timestamp-formatter' = 'yyyy-MM-dd',
+    'partition.timestamp-pattern' = '$k1'
+);
+
+INSERT INTO dwd.dwd_user_login_full(
+    k1,
+    user_id,
+    date_id,
+    login_time,
+    channel,
+    province_id,
+    version_code,
+    mid_id,
+    brand,
+    model,
+    operate_system
+    )
+select
+    k1,
+    user_id,
+    DATE_FORMAT(FROM_UNIXTIME(cast(ts / 1000 as BIGINT)), 'yyyy-MM-dd') date_id,
+    DATE_FORMAT(FROM_UNIXTIME(cast(ts / 1000 as BIGINT)), 'yyyy-MM-dd HH:mm:ss') login_time,
+    channel,
+    province_id,
+    version_code,
+    mid_id,
+    brand,
+    model,
+    operate_system
+from
+    (
+        select
+            user_id,
+            k1,
+            channel,
+            area_code,
+            version_code,
+            mid_id,
+            brand,
+            model,
+            operate_system,
+            ts
+        from
+            (
+                select
+                    user_id,
+                    k1,
+                    channel,
+                    area_code,
+                    version_code,
+                    mid_id,
+                    brand,
+                    model,
+                    operate_system,
+                    ts,
+                    row_number() over (partition by session_id order by ts) rn
+                from
+                    (
+                        select
+                            user_id,
+                            k1,
+                            channel,
+                            area_code,
+                            version_code,
+                            mid_id,
+                            brand,
+                            model,
+                            operate_system,
+                            ts,
+                            concat(
+                                mid_id,
+                                '-',
+                                CAST(
+                                    MAX(session_start_point) over (
+                                        partition by mid_id
+                                        order by ts
+                                        rows between unbounded preceding and current row
+                                    ) as STRING
+                                )
+                            ) session_id
+                        from
+                            (
+                                select
+                                    common_uid user_id,
+                                    k1,
+                                    common_ch channel,
+                                    common_ar area_code,
+                                    common_vc version_code,
+                                    common_mid mid_id,
+                                    common_ba brand,
+                                    common_md model,
+                                    common_os operate_system,
+                                    ts,
+                                    case
+                                        when page_last_page_id is null then ts
+                                        else cast(null as BIGINT)
+                                    end session_start_point
+                                from ods.ods_log_inc
+                            )t1
+                    )t2
+                where user_id is not null
+            )t3
+        where rn=1
+    )t4
+        left join
+    (
+        select
+            id province_id,
+            area_code
+        from ods.ods_base_province_full
+    )bp
+    on t4.area_code=bp.area_code;

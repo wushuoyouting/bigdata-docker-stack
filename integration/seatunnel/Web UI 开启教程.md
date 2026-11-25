@@ -1,3 +1,5 @@
+> 官方中文教程：https://seatunnel.apache.org/zh-CN/docs/3.1.0/
+
 > **本文范围**：在已装好的 SeaTunnel 3.1.0 容器上开启并使用 Web UI。本文不装独立组件，只讲内嵌 Web UI 的开启、访问与功能边界。
 
 # SeaTunnel Web UI 开启教程

@@ -1,3 +1,5 @@
+> 官方中文教程：暂无。官方文档：https://ui.docs.kafbat.io/
+
 # kafbat UI 安装与使用教程
 
 > 一句话结论：kafbat UI 是 Kafka 的 Web 管理工具。本文档交付单容器安装命令与常用操作。容器接入 whd-net，别名 kafka-ui，宿主端口 18080，容器内固定 8080。

@@ -1,3 +1,5 @@
+> 官方中文教程：https://www.dinky.org.cn/docs/1.1/get_started/quick_experience
+
 # Dinky 安装使用
 
 > **一句话结论**：Dinky 给现有 Flink 集群补上 Web SQL IDE。它在浏览器写 SQL、预览结果、提交作业。元数据存本机 PostgreSQL，执行仍交给已有的 flink-jobmanager 与 flink-taskmanager。Dinky 不替代 Flink，也不另起一套计算集群。

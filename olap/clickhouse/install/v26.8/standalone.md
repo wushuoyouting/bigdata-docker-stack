@@ -1,3 +1,5 @@
+> 官方中文教程：https://clickhouse.com/docs/zh
+
 > **本文范围**：把一个独立的 ClickHouse 单节点装起来。用官方镜像跑一个容器。挂载配置、数据与日志目录。装完验到 HTTP 健康、命令行能查询。不建业务表，不接外部数据源。
 
 # ClickHouse 单机安装

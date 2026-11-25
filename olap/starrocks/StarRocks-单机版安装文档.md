@@ -1,3 +1,5 @@
+> 官方中文教程：https://docs.starrocks.io/zh-cn/latest/introduction/StarRocks_intro
+
 # StarRocks-单机版安装文档
 
 > 本文给本机装好 StarRocks allin1 单容器。适合已接入 whd-net 的机器。读完照命令可完成安装与验收。

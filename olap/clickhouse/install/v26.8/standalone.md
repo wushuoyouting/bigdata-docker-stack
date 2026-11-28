@@ -1,10 +1,10 @@
 > 官方中文教程：https://clickhouse.com/docs/zh
 
-> **本文范围**：把一个独立的 ClickHouse 单节点装起来。用官方镜像跑一个容器。挂载配置、数据与日志目录。装完验到 HTTP 健康、命令行能查询。不建业务表，不接外部数据源。
+> **本文范围**：把一个独立的 ClickHouse 单节点装起来。用官方镜像跑一个容器。挂载配置、数据、日志与 jar 目录。装完验到 HTTP 健康、命令行能查询。不建业务表，不接外部数据源。
 
 # ClickHouse 单机安装
 
-> **一句话结论**：一个 clickhouse/clickhouse-server:26.8.40.7 容器。宿主映射 8123 与 19000。固定 IP 172.30.0.20，加入 whd-net。验收三条：ping 返回 Ok、SELECT 1 返回 1、容器日志无异常。
+> **一句话结论**：一个 clickhouse/clickhouse-server:26.8.40.7 容器。宿主映射 8123 与 19000。固定 IP 172.30.0.20，加入 whd-net。配置、数据、日志与 jar 目录全部从宿主挂载。验收三条：ping 返回 Ok、SELECT 1 返回 1、容器日志无异常。
 
 > **本文解决什么**：本机需要一套能独立运行的 ClickHouse，用于学习日志场景的 SQL 调试。本文给出单容器安装法。
 >
@@ -12,7 +12,7 @@
 >
 > **读完能做什么**：一条命令起单节点、验证安装、停止与重来、处理常见启动故障。
 
-> **核对时点**：2026-11-25。macOS arm64 / Docker Desktop。宿主 8123 与 19000 空闲。宿主 9000 已被 MinIO 占用。whd-net 历史分配最高到 .19，本文取 .20。本机未找到 clickhouse 容器与镜像。镜像标签的远端可达状态未核验。
+> **核对时点**：2026-11-27。macOS arm64 / Docker Desktop。本机已完成安装：镜像 26.8.40.7 拉取成功，摘要 sha256:6d462904f276。容器 clickhouse 运行中，HTTP 与命令行均验证通过。宿主 8123 与 19000 由本容器占用。宿主 9000 已被 MinIO 占用。whd-net 分配使用 .20。
 
 ---
 
@@ -55,7 +55,7 @@ docker manifest inspect clickhouse/clickhouse-server:26.8.40.7 \
 | whd-net | 存在，172.30.0.20 未被占用 | 换 .20 之后的未用地址 |
 | 镜像标签 | 输出标签可达 | 按 LTS 通道重新核对版本号 |
 
-> **注意**：若 manifest 检查输出标签不可达，先核对仓库标签。26.8.40.7 来自版本组合记录，未在本次核验中连到远端仓库。
+> **注意**：26.8.40.7 已实测可拉取，摘要 sha256:6d462904f276。若 manifest 检查输出标签不可达，先核对仓库标签与 arm64 架构。
 
 ## 三、安装步骤
 
@@ -65,13 +65,16 @@ docker manifest inspect clickhouse/clickhouse-server:26.8.40.7 \
 mkdir -p /Users/wenhuadong/docker/olap/clickhouse/conf/config.d
 mkdir -p /Users/wenhuadong/docker/olap/clickhouse/data-standalone
 mkdir -p /Users/wenhuadong/docker/olap/clickhouse/logs-standalone
+mkdir -p /Users/wenhuadong/docker/olap/clickhouse/jars
 chmod 777 /Users/wenhuadong/docker/olap/clickhouse/data-standalone
 chmod 777 /Users/wenhuadong/docker/olap/clickhouse/logs-standalone
 ```
 
-预期输出为空。三个目录创建完成，两个运行目录授予容器进程写权限。
+预期输出为空。四个目录创建完成，两个运行目录授予容器进程写权限。
 
 > 容器内进程以非 root 用户运行。宿主目录默认权限会挡住写入。本机为本地演示目录授予 777，生产环境改用固定用户与属主。
+
+> jars 目录存放外部对接要用的驱动 jar，例如 JDBC 驱动。容器以只读方式挂载该目录。jar 放宿主，容器重建不丢。服务端本体是单个二进制，不加载 jar，该目录供后续外部对接与桥接进程使用。
 
 ### 3.2 拉取镜像
 
@@ -124,6 +127,7 @@ chmod 644 /Users/wenhuadong/docker/olap/clickhouse/conf/config.d/whd.xml
 
 ```bash
 cat > /Users/wenhuadong/docker/olap/clickhouse/.env.example <<'EOF'
+CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=<CH_PWD>
 EOF
 chmod 644 /Users/wenhuadong/docker/olap/clickhouse/.env.example
@@ -138,9 +142,14 @@ chmod 600 /Users/wenhuadong/docker/olap/clickhouse/.env
 vi /Users/wenhuadong/docker/olap/clickhouse/.env
 ```
 
-把 CLICKHOUSE_PASSWORD 的占位符替换为本地口令，保存退出。.env 文件不提交仓库。
+CLICKHOUSE_USER 保持 default。把 CLICKHOUSE_PASSWORD 的占位符替换为本地口令，保存退出。.env 文件不提交仓库。
 
-> 镜像入口脚本读取 CLICKHOUSE_PASSWORD，并给 default 用户设置口令。留空占位符会让服务以空口令运行。
+| 变量 | 取值 | 作用 |
+| --- | --- | --- |
+| CLICKHOUSE_USER | default | 连接账号 |
+| CLICKHOUSE_PASSWORD | 本地口令 | 该账号的登录口令 |
+
+> 镜像入口脚本读取这两个变量。CLICKHOUSE_USER 指定账号，CLICKHOUSE_PASSWORD 给该账号设置口令。留空占位符会让服务以空口令运行。改完变量要重建容器才生效。
 
 ### 3.5 启动容器
 
@@ -157,6 +166,7 @@ docker run -d \
   -v /Users/wenhuadong/docker/olap/clickhouse/conf/config.d/whd.xml:/etc/clickhouse-server/config.d/whd.xml:ro \
   -v /Users/wenhuadong/docker/olap/clickhouse/data-standalone:/var/lib/clickhouse \
   -v /Users/wenhuadong/docker/olap/clickhouse/logs-standalone:/var/log/clickhouse-server \
+  -v /Users/wenhuadong/docker/olap/clickhouse/jars:/opt/clickhouse/custom-jars:ro \
   --env-file /Users/wenhuadong/docker/olap/clickhouse/.env \
   clickhouse/clickhouse-server:26.8.40.7
 ```
@@ -173,9 +183,12 @@ docker run -d \
 | whd.xml 单文件挂载 | 配置从宿主读取，容器重建不丢 |
 | data-standalone 挂载 | 数据片段与元数据落到宿主目录 |
 | logs-standalone 挂载 | 服务日志落到宿主目录 |
-| --env-file | 从本地文件注入 default 用户口令 |
+| jars 挂载 | 驱动 jar 放宿主，容器内只读可见 |
+| --env-file | 从本地文件注入账号与口令 |
 
 > 宿主 9000 已由 MinIO 占用，因此原生协议映射为 19000。容器内仍监听 9000，同网络容器写 clickhouse:9000。
+
+> jar 一律从宿主挂载，不用 docker cp。容器删除重建后驱动仍在，不需要重新拷贝。
 
 ## 四、启动与验证
 
@@ -200,7 +213,7 @@ set -a
 set +a
 
 docker exec -i -e CLICKHOUSE_PASSWORD="$CLICKHOUSE_PASSWORD" clickhouse \
-  clickhouse-client --user default --query "SELECT 1 AS ok"
+  clickhouse-client --user "$CLICKHOUSE_USER" --query "SELECT 1 AS ok"
 ```
 
 预期输出 1。
@@ -235,6 +248,8 @@ docker rm -f clickhouse
 | 配置生效 | docker exec clickhouse grep listen_host /etc/clickhouse-server/config.d/whd.xml | 输出 0.0.0.0 |
 | 日志无异常 | docker logs clickhouse --tail 100 | 无 error 或 exception 字样 |
 | 数据目录可写 | docker exec clickhouse clickhouse-client --query "SELECT count() FROM system.parts" | 返回数字，无权限异常 |
+| 版本 | docker exec clickhouse clickhouse-client --version | 输出 26.8.40.7 |
+| jar 目录挂载 | docker inspect clickhouse --format 取 Mounts 列表 | 含 /opt/clickhouse/custom-jars，模式为 ro |
 
 > 最后一条同时验证挂载目录可写。容器进程以非 root 用户运行，目录权限不足会在该步报异常。
 
@@ -252,3 +267,4 @@ docker rm -f clickhouse
 | 查询报 too many open files | nofile 上限未生效 | 复核 --ulimit 参数并重建容器 |
 | Web UI 打不开 | 访问了根路径 | 用 http://localhost:8123/play |
 | 配置改动不生效 | 挂载的是目录而非单文件 | 按 3.3 改为单文件挂载并重建容器 |
+| jar 目录内写入失败 | 该目录按只读挂载 | 在宿主 jars 目录增删文件，容器内只读 |

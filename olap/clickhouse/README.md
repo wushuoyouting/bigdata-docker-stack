@@ -31,7 +31,7 @@
 
 ## 三、当前基线
 
-> **核对时点**：2026-11-25。macOS arm64 / Docker Desktop。以下为规划值，安装落地后回填实测值。
+> **核对时点**：2026-11-27。macOS arm64 / Docker Desktop。本机已按安装教程完成部署，下表为实测值。容器 clickhouse 运行中，HTTP 与命令行均验证通过。
 
 | 项 | 取值 |
 | --- | --- |
@@ -46,8 +46,10 @@
 | 覆盖配置 | conf/config.d/whd.xml |
 | 数据目录 | data-standalone/ |
 | 日志目录 | logs-standalone/ |
+| jar 目录 | jars/，容器内挂到 /opt/clickhouse/custom-jars |
+| 账号与口令 | .env 中的 CLICKHOUSE_USER 与 CLICKHOUSE_PASSWORD |
 
-> 镜像标签的远端可达状态未在本次核验中确认。安装前用 docker manifest inspect 核对标签与 arm64 架构。
+> 镜像 26.8.40.7 已实测可拉取，摘要 sha256:6d462904f276。四类宿主持久目录全部挂载，容器删除重建不丢配置、数据、日志与 jar。
 
 ## 四、版本矩阵
 
@@ -71,6 +73,7 @@
 | conf/config.d/ | 单文件挂载的覆盖配置 |
 | data-standalone/ | 数据文件与元数据 |
 | logs-standalone/ | 服务日志 |
+| jars/ | 外部对接驱动 jar，容器内只读挂载 |
 
 > 宿主 9000 已被 MinIO 占用。原生协议映射为 19000。容器内仍监听 9000。
 

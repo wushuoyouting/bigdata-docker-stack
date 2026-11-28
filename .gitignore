@@ -16,6 +16,9 @@ __pycache__/
 
 # 上游源码副本
 table-formats/iceberg/iceberg/
+# Flink 发行版解压副本。用 /* 而非 /，让下面的否定规则能进入目录生效
+scheduling/dolphinscheduler/flink/*
+!scheduling/dolphinscheduler/flink/ds-flink-env.sh
 
 # 运行时数据目录
 olap/doris/be/
@@ -31,6 +34,8 @@ object-storage/minio/data/
 bi/superset/home/
 ai/mineru/output/
 ai/mineru/.mineru/
+# Flink SQL 跑出来的表数据与元数据，属运行时产物
+streaming/flink/sql/warehouse*/
 **/logs/
 **/checkpoints/
 **/data-standalone/

@@ -1,0 +1,117 @@
+SET 'execution.target' = 'remote';
+SET 'rest.address' = 'localhost';
+SET 'rest.port' = '8081';
+SET 'table.exec.resource.default-parallelism' = '1';
+SET 'execution.runtime-mode' = 'batch';
+SET 'execution.checkpointing.interval' = '100s';
+SET 'table.exec.state.ttl'= '8640000';
+SET 'table.exec.mini-batch.enabled' = 'true';
+SET 'table.exec.mini-batch.allow-latency' = '60s';
+SET 'table.exec.mini-batch.size' = '10000';
+SET 'table.local-time-zone' = 'Asia/Shanghai';
+SET 'table.exec.sink.not-null-enforcer'='DROP';
+SET 'table.exec.sink.upsert-materialize' = 'NONE';
+
+CREATE CATALOG iceberg_catalog WITH (
+    'type' = 'iceberg',
+    'catalog-impl' = 'org.apache.iceberg.jdbc.JdbcCatalog',
+    'uri' = 'jdbc:postgresql://host.docker.internal:5432/iceberg_meta',
+    'jdbc.user' = 'root',
+    'jdbc.password' = '123456',
+    'warehouse' = 's3://lakehouse/iceberg/',
+    'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
+    's3.endpoint' = 'http://minio:9000',
+    's3.access-key-id' = 'ak6c52d75066d96ddd',
+    's3.secret-access-key' = '5cf0fa1d0e1fd9bf182be642beca1a15',
+    's3.region' = 'us-east-1',
+    's3.path-style-access' = 'true'
+);
+USE CATALOG iceberg_catalog;
+CREATE DATABASE IF NOT EXISTS iceberg_dwd;
+
+CREATE TABLE IF NOT EXISTS iceberg_dwd.dwd_trade_refund_pay_suc_full(
+    `id`                BIGINT COMMENT '编号',
+    `k1`                STRING COMMENT '分区字段',
+    `user_id`           BIGINT COMMENT '用户ID',
+    `order_id`          BIGINT COMMENT '订单编号',
+    `sku_id`            BIGINT COMMENT 'SKU编号',
+    `province_id`       BIGINT COMMENT '地区ID',
+    `payment_type_code` STRING COMMENT '支付类型编码',
+    `payment_type_name` STRING COMMENT '支付类型名称',
+    `date_id`           STRING COMMENT '日期ID',
+    `callback_time`     TIMESTAMP(3) COMMENT '支付成功时间',
+    `refund_num`        DECIMAL(16, 2) COMMENT '退款件数',
+    `refund_amount`     DECIMAL(16, 2) COMMENT '退款金额',
+    PRIMARY KEY (`id`,`k1` ) NOT ENFORCED
+    ) PARTITIONED BY (`k1`) WITH (
+    'catalog-name' = 'hadoop_prod'
+);
+
+INSERT INTO iceberg_dwd.dwd_trade_refund_pay_suc_full /*+ OPTIONS('upsert-enabled' = 'true') */(
+    id,
+    k1,
+    user_id,
+    order_id,
+    sku_id,
+    province_id,
+    payment_type_code,
+    payment_type_name,
+    date_id,
+    callback_time,
+    refund_num,
+    refund_amount
+    )
+select
+    rp.id,
+    k1,
+    user_id,
+    rp.order_id,
+    rp.sku_id,
+    province_id,
+    payment_type,
+    dic_name,
+    date_format(callback_time,'yyyy-MM-dd') date_id,
+    callback_time,
+    refund_num,
+    total_amount
+from
+    (
+        select
+            id,
+            k1,
+            order_id,
+            sku_id,
+            payment_type,
+            callback_time,
+            total_amount
+        from iceberg_ods.ods_refund_payment_full
+        -- where refund_status='1602'
+    )rp
+        left join
+    (
+        select
+            id,
+            user_id,
+            province_id
+        from iceberg_ods.ods_order_info_full
+    )oi
+    on rp.order_id=oi.id
+        left join
+    (
+        select
+            order_id,
+            sku_id,
+            refund_num
+        from iceberg_ods.ods_order_refund_info_full
+    )ri
+    on rp.order_id=ri.order_id
+        and rp.sku_id=ri.sku_id
+        left join
+    (
+        select
+            dic_code,
+            dic_name
+        from iceberg_ods.ods_base_dic_full
+        where parent_code='11'
+    )dic
+    on rp.payment_type=dic.dic_code;

@@ -1,0 +1,103 @@
+SET 'execution.target' = 'remote';
+SET 'rest.address' = 'localhost';
+SET 'rest.port' = '8081';
+SET 'table.exec.resource.default-parallelism' = '1';
+SET 'execution.runtime-mode' = 'batch';
+SET 'execution.checkpointing.interval' = '100s';
+SET 'table.exec.state.ttl' = '8640000';
+SET 'table.exec.mini-batch.enabled' = 'true';
+SET 'table.exec.mini-batch.allow-latency' = '60s';
+SET 'table.exec.mini-batch.size' = '10000';
+SET 'table.local-time-zone' = 'Asia/Shanghai';
+SET 'table.exec.sink.not-null-enforcer' = 'DROP';
+SET 'table.exec.sink.upsert-materialize' = 'NONE';
+
+CREATE CATALOG iceberg_catalog WITH (
+    'type' = 'iceberg',
+    'catalog-impl' = 'org.apache.iceberg.jdbc.JdbcCatalog',
+    'uri' = 'jdbc:postgresql://host.docker.internal:5432/iceberg_meta',
+    'jdbc.user' = 'root',
+    'jdbc.password' = '123456',
+    'warehouse' = 's3://lakehouse/iceberg/',
+    'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
+    's3.endpoint' = 'http://minio:9000',
+    's3.access-key-id' = 'ak6c52d75066d96ddd',
+    's3.secret-access-key' = '5cf0fa1d0e1fd9bf182be642beca1a15',
+    's3.region' = 'us-east-1',
+    's3.path-style-access' = 'true'
+);
+USE CATALOG iceberg_catalog;
+CREATE DATABASE IF NOT EXISTS iceberg_dwd;
+
+CREATE TABLE IF NOT EXISTS iceberg_dwd.dwd_marketing_seckill_full(
+    `id` STRING COMMENT '编号',
+    `k1` STRING COMMENT '分区字段',
+    `seckill_id` STRING COMMENT '秒杀活动ID',
+    `spu_id` STRING COMMENT 'SPU ID',
+    `sku_id` STRING COMMENT 'SKU ID',
+    `sku_name` STRING COMMENT '商品名称',
+    `sku_default_img` STRING COMMENT '商品图片',
+    `original_price` DECIMAL(16, 2) COMMENT '原价',
+    `seckill_price` DECIMAL(16, 2) COMMENT '秒杀价',
+    `create_time` STRING COMMENT '创建时间',
+    `check_time` STRING COMMENT '审核时间',
+    `status` STRING COMMENT '状态',
+    `start_time` STRING COMMENT '开始时间',
+    `end_time` STRING COMMENT '结束时间',
+    `total_num` BIGINT COMMENT '总数量',
+    `stock_count` BIGINT COMMENT '剩余库存',
+    `sku_desc` STRING COMMENT '商品描述',
+    PRIMARY KEY (`id`, `k1`) NOT ENFORCED
+) PARTITIONED BY (`k1`) WITH (
+    'catalog-name' = 'hadoop_prod'
+);
+
+INSERT INTO iceberg_dwd.dwd_marketing_seckill_full /*+ OPTIONS('upsert-enabled' = 'true') */(
+    id,
+    k1,
+    seckill_id,
+    spu_id,
+    sku_id,
+    sku_name,
+    sku_default_img,
+    original_price,
+    seckill_price,
+    create_time,
+    check_time,
+    status,
+    start_time,
+    end_time,
+    total_num,
+    stock_count,
+    sku_desc
+)
+SELECT
+    CAST(sg.id AS STRING) AS id,
+    sg.k1,
+    CAST(sg.id AS STRING) AS seckill_id,
+    COALESCE(CAST(sg.spu_id AS STRING), '') AS spu_id,
+    COALESCE(CAST(sg.sku_id AS STRING), '') AS sku_id,
+    COALESCE(sg.sku_name, si.sku_name, '') AS sku_name,
+    COALESCE(sg.sku_default_img, si.sku_default_img, '') AS sku_default_img,
+    CAST(COALESCE(sg.price, 0) AS DECIMAL(16, 2)) AS original_price,
+    CAST(COALESCE(sg.cost_price, 0) AS DECIMAL(16, 2)) AS seckill_price,
+    DATE_FORMAT(sg.create_time, 'yyyy-MM-dd HH:mm:ss') AS create_time,
+    DATE_FORMAT(sg.check_time, 'yyyy-MM-dd HH:mm:ss') AS check_time,
+    COALESCE(sg.status, '') AS status,
+    DATE_FORMAT(sg.start_time, 'yyyy-MM-dd HH:mm:ss') AS start_time,
+    DATE_FORMAT(sg.end_time, 'yyyy-MM-dd HH:mm:ss') AS end_time,
+    COALESCE(CAST(sg.num AS BIGINT), 0) AS total_num,
+    COALESCE(CAST(sg.stock_count AS BIGINT), 0) AS stock_count,
+    COALESCE(sg.sku_desc, '') AS sku_desc
+FROM iceberg_ods.ods_seckill_goods_full sg
+LEFT JOIN
+(
+    SELECT
+        id,
+        sku_name,
+        sku_default_img
+    FROM iceberg_ods.ods_sku_info_full
+    WHERE k1 = DATE_FORMAT(CURRENT_TIMESTAMP, 'yyyy-MM-dd')
+) si
+    ON sg.sku_id = si.id
+WHERE sg.k1 = DATE_FORMAT(CURRENT_TIMESTAMP, 'yyyy-MM-dd');

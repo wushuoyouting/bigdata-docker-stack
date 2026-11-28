@@ -1,0 +1,58 @@
+SET 'execution.target' = 'remote';
+SET 'rest.address' = 'localhost';
+SET 'rest.port' = '8081';
+SET 'table.dynamic-table-options.enabled' = 'true';
+SET 'execution.runtime-mode' = 'streaming';
+SET 'execution.checkpointing.interval' = '100s';
+SET 'table.exec.state.ttl'= '8640000';
+SET 'table.exec.mini-batch.enabled' = 'true';
+SET 'table.exec.mini-batch.allow-latency' = '60s';
+SET 'table.exec.mini-batch.size' = '10000';
+SET 'table.local-time-zone' = 'Asia/Shanghai';
+SET 'table.exec.sink.not-null-enforcer'='DROP';
+SET 'table.exec.sink.upsert-materialize' = 'NONE';
+SET 'pipeline.name' = 'hudi_dwd_stream_dwd_tool_coupon_get_full';
+
+CREATE CATALOG hudi_catalog WITH (
+    'type' = 'hudi',
+    'mode' = 'dfs',
+    'path' = 's3a://lakehouse/hudi'
+);
+
+use CATALOG hudi_catalog;
+
+create  DATABASE IF NOT EXISTS hudi_dwd_stream;
+
+CREATE TABLE IF NOT EXISTS hudi_dwd_stream.dwd_tool_coupon_get_full(
+    `id`        BIGINT COMMENT '编号',
+    `k1`        STRING COMMENT '分区字段',
+    `coupon_id` BIGINT COMMENT '优惠券ID',
+    `user_id`   BIGINT COMMENT 'userid',
+    `date_id`   STRING COMMENT '日期ID',
+    `get_time`  timestamp(3) COMMENT '领取时间',
+    PRIMARY KEY (`id`,`k1` ) NOT ENFORCED
+    )   PARTITIONED BY (`k1` ) WITH (
+    'connector' = 'hudi',
+    'table.type' = 'MERGE_ON_READ',
+    'read.streaming.enabled' = 'true',
+    'read.streaming.check-interval' = '4'
+    );
+
+
+insert into hudi_dwd_stream.dwd_tool_coupon_get_full(
+    id,
+    k1,
+    coupon_id,
+    user_id,
+    date_id,
+    get_time
+)
+select
+    id,
+    k1,
+    coupon_id,
+    user_id,
+    date_format(get_time,'yyyy-MM-dd') date_id,
+    get_time
+from hudi_ods.ods_coupon_use_full;
+

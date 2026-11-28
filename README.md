@@ -140,7 +140,7 @@ clickhouse/
 | 系统与工具目录 | .DS_Store、.codebuddy、.mimosa |
 | Python 虚拟环境 | ai/mineru/.mineru |
 | 上游源码副本 | table-formats/iceberg/iceberg、scheduling/dolphinscheduler/flink |
-| 运行时数据 | olap/doris/volumes、messaging/kafka/data、streaming/flink/sql/warehouse |
+| 运行时数据 | olap/doris/volumes、messaging/kafka/data |
 | 日志 | 所有 .log 文件 |
 | 大依赖包与凭据 | 所有 .jar、.env、docker-compose.whd.yml |
 | 本机运维档案 | code-wiki |

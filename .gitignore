@@ -34,8 +34,6 @@ object-storage/minio/data/
 bi/superset/home/
 ai/mineru/output/
 ai/mineru/.mineru/
-# Flink SQL 跑出来的表数据与元数据，属运行时产物
-streaming/flink/sql/warehouse*/
 **/logs/
 **/checkpoints/
 **/data-standalone/

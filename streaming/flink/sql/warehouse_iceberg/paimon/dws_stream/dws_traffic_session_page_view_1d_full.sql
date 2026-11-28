@@ -1,0 +1,78 @@
+SET 'execution.target' = 'remote';
+SET 'rest.address' = 'localhost';
+SET 'rest.port' = '8081';
+SET 'table.dynamic-table-options.enabled' = 'true';
+SET 'execution.runtime-mode' = 'streaming';
+SET 'execution.checkpointing.interval' = '100s';
+SET 'table.exec.state.ttl' = '8640000';
+SET 'table.exec.mini-batch.enabled' = 'true';
+SET 'table.exec.mini-batch.allow-latency' = '60s';
+SET 'table.exec.mini-batch.size' = '10000';
+SET 'table.local-time-zone' = 'Asia/Shanghai';
+SET 'table.exec.sink.not-null-enforcer' = 'DROP';
+SET 'table.exec.sink.upsert-materialize' = 'NONE';
+SET 'pipeline.name' = 'paimon_dws_stream_dws_traffic_session_page_view_1d_full';
+
+CREATE CATALOG paimon_minio WITH (
+    'type' = 'paimon',
+    'metastore' = 'filesystem',
+    'warehouse' = 's3://lakehouse/paimon',
+    's3.endpoint' = 'http://minio:9000',
+    's3.access-key' = 'ak6c52d75066d96ddd',
+    's3.secret-key' = '5cf0fa1d0e1fd9bf182be642beca1a15',
+    's3.path.style.access' = 'true'
+);
+USE CATALOG paimon_minio;
+CREATE DATABASE IF NOT EXISTS dws_stream;
+
+CREATE TABLE IF NOT EXISTS dws_stream.dws_traffic_session_page_view_1d_full(
+    `session_id` STRING COMMENT 'session id',
+    `mid_id` STRING COMMENT 'device id',
+    `k1` STRING COMMENT 'partition field',
+    `brand` STRING COMMENT 'device brand',
+    `model` STRING COMMENT 'device model',
+    `operate_system` STRING COMMENT 'device os',
+    `version_code` STRING COMMENT 'app version',
+    `channel` STRING COMMENT 'channel',
+    `during_time_1d` BIGINT COMMENT 'daily during time',
+    `page_count_1d` BIGINT COMMENT 'daily page count',
+    PRIMARY KEY (`session_id`, `mid_id`, `k1`) NOT ENFORCED
+) PARTITIONED BY (`k1`) WITH (
+    'connector' = 'paimon',
+    'metastore.partitioned-table' = 'true',
+    'file.format' = 'parquet',
+    'write-buffer-size' = '512mb',
+    'write-buffer-spillable' = 'true',
+    'partition.expiration-time' = '1 d',
+    'partition.expiration-check-interval' = '1 h',
+    'partition.timestamp-formatter' = 'yyyy-MM-dd',
+    'partition.timestamp-pattern' = '$k1'
+);
+
+INSERT INTO dws_stream.dws_traffic_session_page_view_1d_full(
+    session_id,
+    mid_id,
+    k1,
+    brand,
+    model,
+    operate_system,
+    version_code,
+    channel,
+    during_time_1d,
+    page_count_1d
+)
+SELECT
+    session_id,
+    mid_id,
+    k1,
+    brand,
+    model,
+    operate_system,
+    version_code,
+    channel,
+    SUM(during_time) AS during_time_1d,
+    COUNT(*) AS page_count_1d
+FROM dwd_stream.dwd_traffic_page_view_full
+GROUP BY session_id, mid_id, k1, brand, model, operate_system, version_code, channel;
+
+

@@ -34,6 +34,7 @@
 | ④ | Doris | 建表导入与 OLAP 查询 | olap/doris |
 | ⑤ | ClickHouse | 列存与 MergeTree | olap/clickhouse |
 | ⑥ | Paimon | 湖表读写与合并 | table-formats/paimon |
+| ⑦ | Spark | 批处理与 Spark SQL | streaming/spark |
 
 > 每步先读基本原理，再按安装教程部署，最后用基本使用做练习。
 
@@ -44,7 +45,7 @@
 | 功能域 | 目录 | 组件 |
 | --- | --- | --- |
 | 调度编排 | scheduling | dolphinscheduler |
-| 流计算 | streaming | flink、fluss |
+| 流计算 | streaming | flink、fluss、spark |
 | 分析查询 | olap | doris、starrocks、clickhouse |
 | 可视化 | bi | superset |
 | 消息总线 | messaging | kafka |
@@ -138,8 +139,8 @@ clickhouse/
 | --- | --- |
 | 系统与工具目录 | .DS_Store、.codebuddy、.mimosa |
 | Python 虚拟环境 | ai/mineru/.mineru |
-| 上游源码副本 | table-formats/iceberg/iceberg |
-| 运行时数据 | olap/doris/volumes、messaging/kafka/data |
+| 上游源码副本 | table-formats/iceberg/iceberg、scheduling/dolphinscheduler/flink |
+| 运行时数据 | olap/doris/volumes、messaging/kafka/data、streaming/flink/sql/warehouse |
 | 日志 | 所有 .log 文件 |
 | 大依赖包与凭据 | 所有 .jar、.env、docker-compose.whd.yml |
 | 本机运维档案 | code-wiki |
@@ -149,6 +150,14 @@ clickhouse/
 ### 6.4 写作基线
 
 中文内容遵守统一写作规范。代码块外不使用行内反引号。代码块外尖括号占位符转为 HTML 实体。标题单行，宽度小于十五个汉字。句长不超过三十字。一句只写一件事。同物全程同词。不写跨章节或跨文档的位置引用。口令一律用占位符，真值不进仓库。
+
+### 6.5 提交约定
+
+每次修改完成后提交并推送到 GitHub，不留未提交的本地改动。
+
+一个任务对应一个提交。提交信息带模块前缀，说明改动原因。文档与它对应的配置改动放在同一提交。不同模块的改动不混在一个提交里。
+
+上游发行版副本与运行时数据只在本地保留。提交前用 git status 核对暂存范围，确认没有把排除内容带进仓库。
 
 ## 七、形态定义
 
